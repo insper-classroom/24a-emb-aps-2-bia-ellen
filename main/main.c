@@ -14,12 +14,46 @@
 #include "hc06.h"
 
 const int BTN_PIN_ENTER = 17;
+const int BTN_PIN_ESC = 16;
+const int GARRA_DIREITA = 18;
+const int GARRA_ESQUERDA = 19;
+const int BTN_VISAO = 20;
+
 QueueHandle_t xQueueBTN;
 
 void btn_callback(uint gpio, uint32_t events){
     if(gpio==BTN_PIN_ENTER){
         char data[4] = "ENT";
         xQueueSendFromISR(xQueueBTN, &data, 0);
+    }
+    if(gpio==BTN_PIN_ESC){
+        char data[4] = "ESC";
+        xQueueSendFromISR(xQueueBTN, &data, 0);
+    }
+    if(gpio==BTN_VISAO){
+        char data[4] = "VIS";
+        xQueueSendFromISR(xQueueBTN, &data, 0);
+    }
+    if(gpio==GARRA_DIREITA){
+        if(events==GPIO_IRQ_EDGE_FALL){
+            char data[4] = "GDD"; // Garra Direita Desce
+            xQueueSendFromISR(xQueueBTN, &data, 0);
+
+        } if(events==GPIO_IRQ_EDGE_RISE){
+            char data[4] = "GDS"; // Garra Direita Sobe
+            xQueueSendFromISR(xQueueBTN, &data, 0);
+
+        }
+    }
+    if(gpio==GARRA_ESQUERDA){
+        if(events==GPIO_IRQ_EDGE_FALL){
+            char data[4] = "GED"; // Garra Esquerda Desce
+            xQueueSendFromISR(xQueueBTN, &data, 0);
+
+        } if(events==GPIO_IRQ_EDGE_RISE){
+            char data[4] = "GES"; // Garra Esquerda Sobe
+            xQueueSendFromISR(xQueueBTN, &data, 0);
+        }
     }
 
 }
@@ -48,8 +82,28 @@ void game_task(void *p){
     gpio_init(BTN_PIN_ENTER);
     gpio_set_dir(BTN_PIN_ENTER, GPIO_IN);
     gpio_pull_up(BTN_PIN_ENTER);
-
     gpio_set_irq_enabled_with_callback(BTN_PIN_ENTER, GPIO_IRQ_EDGE_FALL, true, &btn_callback);
+
+    gpio_init(BTN_PIN_ESC);
+    gpio_set_dir(BTN_PIN_ESC, GPIO_IN);
+    gpio_pull_up(BTN_PIN_ESC);
+    gpio_set_irq_enabled(BTN_PIN_ESC, GPIO_IRQ_EDGE_FALL, true);
+
+    gpio_init(BTN_VISAO);
+    gpio_set_dir(BTN_VISAO, GPIO_IN);
+    gpio_pull_up(BTN_VISAO);
+    gpio_set_irq_enabled(BTN_VISAO, GPIO_IRQ_EDGE_FALL, true);
+
+    gpio_init(GARRA_DIREITA);
+    gpio_set_dir(GARRA_DIREITA, GPIO_IN);
+    gpio_pull_up(GARRA_DIREITA);
+    gpio_set_irq_enabled(GARRA_DIREITA, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
+
+    gpio_init(GARRA_ESQUERDA);
+    gpio_set_dir(GARRA_ESQUERDA, GPIO_IN);
+    gpio_pull_up(GARRA_ESQUERDA);
+    gpio_set_irq_enabled(GARRA_ESQUERDA, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
+
 
     while(true){
 
