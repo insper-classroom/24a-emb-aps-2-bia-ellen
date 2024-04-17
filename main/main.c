@@ -13,11 +13,11 @@
 
 #include "hc06.h"
 
-const int BTN_PIN_ENTER = 17;
-const int BTN_PIN_ESC = 16;
-const int GARRA_DIREITA = 18;
-const int GARRA_ESQUERDA = 19;
-const int BTN_VISAO = 20;
+const int BTN_PIN_ENTER = 11;
+const int BTN_PIN_ESC = 12;
+const int BTN_VISAO = 13;
+const int GARRA_DIREITA = 14;
+const int GARRA_ESQUERDA = 15;
 
 QueueHandle_t xQueueBTN;
 
@@ -69,9 +69,11 @@ void hc06_task(void *p) {
     while (true) {
         if (xQueueReceive(xQueueBTN, &data, 100)) {
             uart_puts(HC06_UART_ID, data);
+            printf("data %s \n", data);
             vTaskDelay(pdMS_TO_TICKS(50));
         } else{
             uart_puts(HC06_UART_ID, "NAN");
+            printf("data %s \n", data);
             vTaskDelay(pdMS_TO_TICKS(50));
         }
         
