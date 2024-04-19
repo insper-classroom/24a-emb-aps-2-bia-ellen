@@ -12,14 +12,57 @@
 #include <stdio.h>
 
 #include "hc06.h"
+#include "hardware/adc.h"
 
-const int BTN_PIN_ENTER = 11;
-const int BTN_PIN_ESC = 12;
-const int BTN_VISAO = 13;
+const int BTN_PIN_ENTER = 12;
+const int BTN_PIN_ESC = 13;
 const int GARRA_DIREITA = 14;
 const int GARRA_ESQUERDA = 15;
+const int BTN_PRESSION = 26;
 
 QueueHandle_t xQueueBTN;
+QueueHandle_t xQueueBall;
+
+
+void ddp_task() {
+  adc_init();
+  adc_gpio_init(BTN_PRESSION);
+
+  while (true) {
+    
+    adc_select_input(0);
+    int ddp = adc_read();
+    printf("ddp: %d \n", ddp);
+
+    double ddp_volts = (double) (ddp*3)/4095;
+
+    printf("ddp_volts: %f \n", ddp_volts);
+
+    xQueueSend(xQueueBall, &ddp_volts, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+void ball_send_task() {
+  double ddp;
+  int pressed = 0;
+
+  while(true) {
+    if(xQueueReceive(xQueueBall, &ddp, portMAX_DELAY)) {
+
+        if (ddp < 2.7 && pressed == 0) {
+          char data[4] = "BDS"; // Tecla B desce
+          xQueueSend(xQueueBTN, &data, 0);
+          pressed = 1;
+        }
+        else if (ddp > 2.7 && pressed == 1) {
+          char data[4] = "BSB"; // Tecla B sobe
+          xQueueSend(xQueueBTN, &data, 0);
+          pressed = 0;
+        }
+      }
+  }
+}
 
 void btn_callback(uint gpio, uint32_t events){
     if(gpio==BTN_PIN_ENTER){
@@ -28,10 +71,6 @@ void btn_callback(uint gpio, uint32_t events){
     }
     if(gpio==BTN_PIN_ESC){
         char data[4] = "ESC";
-        xQueueSendFromISR(xQueueBTN, &data, 0);
-    }
-    if(gpio==BTN_VISAO){
-        char data[4] = "VIS";
         xQueueSendFromISR(xQueueBTN, &data, 0);
     }
     if(gpio==GARRA_DIREITA){
@@ -55,7 +94,6 @@ void btn_callback(uint gpio, uint32_t events){
             xQueueSendFromISR(xQueueBTN, &data, 0);
         }
     }
-
 }
 
 void hc06_task(void *p) {
@@ -70,11 +108,11 @@ void hc06_task(void *p) {
         if (xQueueReceive(xQueueBTN, &data, 100)) {
             uart_puts(HC06_UART_ID, data);
             printf("data %s \n", data);
-            vTaskDelay(pdMS_TO_TICKS(50));
+            vTaskDelay(pdMS_TO_TICKS(200));
         } else{
             uart_puts(HC06_UART_ID, "NAN");
-            printf("data %s \n", data);
-            vTaskDelay(pdMS_TO_TICKS(50));
+            printf("data NAN \n");
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
         
     }
@@ -90,11 +128,6 @@ void game_task(void *p){
     gpio_set_dir(BTN_PIN_ESC, GPIO_IN);
     gpio_pull_up(BTN_PIN_ESC);
     gpio_set_irq_enabled(BTN_PIN_ESC, GPIO_IRQ_EDGE_FALL, true);
-
-    gpio_init(BTN_VISAO);
-    gpio_set_dir(BTN_VISAO, GPIO_IN);
-    gpio_pull_up(BTN_VISAO);
-    gpio_set_irq_enabled(BTN_VISAO, GPIO_IRQ_EDGE_FALL, true);
 
     gpio_init(GARRA_DIREITA);
     gpio_set_dir(GARRA_DIREITA, GPIO_IN);
@@ -118,9 +151,12 @@ int main() {
     printf("Start bluetooth task\n");
 
     xQueueBTN = xQueueCreate(64, 4*sizeof(char));
+    xQueueBall = xQueueCreate(32, sizeof(double));
 
     xTaskCreate(game_task, "Game Task", 4096,  NULL, 1, NULL);
     xTaskCreate(hc06_task, "UART_Task 1", 4096, NULL, 1, NULL);
+    xTaskCreate(ddp_task, "DDP", 4096, NULL, 1, NULL);
+    xTaskCreate(ball_send_task, "BALL", 4096, NULL, 1, NULL);
 
     vTaskStartScheduler();
 

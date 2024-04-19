@@ -14,14 +14,16 @@ while True:
     elif compara_string(data, 'ESC'):
         pyautogui.press('esc')
     elif compara_string(data, 'GED'):
-        pyautogui.keyDown('shiftleft')
+        pyautogui.keyDown('a')
     elif compara_string(data, 'GES'):
-        pyautogui.keyUp('shiftleft')
+        pyautogui.keyUp('a')
     elif compara_string(data, 'GDD'):
-        pyautogui.keyDown('shiftright')
+        pyautogui.keyDown('d')
     elif compara_string(data, 'GDS'):
-        pyautogui.keyUp('shiftright')
-    elif compara_string(data, 'VIS'):
-        pyautogui.press('c')
+        pyautogui.keyUp('d')
+    elif compara_string(data, 'BDS'):
+        pyautogui.keyDown('b')
+    elif compara_string(data, 'BSB'):
+        pyautogui.keyUp('b')
 
     
