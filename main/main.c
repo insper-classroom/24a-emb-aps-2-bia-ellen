@@ -19,10 +19,11 @@ const int BTN_PIN_ESC = 13;
 const int GARRA_DIREITA = 14;
 const int GARRA_ESQUERDA = 15;
 const int BTN_PRESSION = 26;
+const int ANL_X = 27;
+const int ANL_Y = 28; 
 
-QueueHandle_t xQueueBTN;
+QueueHandle_t xQueueGame;
 QueueHandle_t xQueueBall;
-
 
 void ddp_task() {
   adc_init();
@@ -51,13 +52,13 @@ void ball_send_task() {
     if(xQueueReceive(xQueueBall, &ddp, portMAX_DELAY)) {
 
         if (ddp < 2.7 && pressed == 0) {
-          char data[4] = "BDS"; // Tecla B desce
-          xQueueSend(xQueueBTN, &data, 0);
+          char data[5] = "2BDS"; // Tecla B desce
+          xQueueSend(xQueueGame, &data, 0);
           pressed = 1;
         }
         else if (ddp > 2.7 && pressed == 1) {
-          char data[4] = "BSB"; // Tecla B sobe
-          xQueueSend(xQueueBTN, &data, 0);
+          char data[5] = "2BSB"; // Tecla B sobe
+          xQueueSend(xQueueGame, &data, 0);
           pressed = 0;
         }
       }
@@ -66,32 +67,32 @@ void ball_send_task() {
 
 void btn_callback(uint gpio, uint32_t events){
     if(gpio==BTN_PIN_ENTER){
-        char data[4] = "ENT";
-        xQueueSendFromISR(xQueueBTN, &data, 0);
+        char data[5] = "2ENT";
+        xQueueSendFromISR(xQueueGame, &data, 0);
     }
     if(gpio==BTN_PIN_ESC){
-        char data[4] = "ESC";
-        xQueueSendFromISR(xQueueBTN, &data, 0);
+        char data[5] = "2ESC";
+        xQueueSendFromISR(xQueueGame, &data, 0);
     }
     if(gpio==GARRA_DIREITA){
         if(events==GPIO_IRQ_EDGE_FALL){
-            char data[4] = "GDD"; // Garra Direita Desce
-            xQueueSendFromISR(xQueueBTN, &data, 0);
+            char data[5] = "2GDD"; // Garra Direita Desce
+            xQueueSendFromISR(xQueueGame, &data, 0);
 
         } if(events==GPIO_IRQ_EDGE_RISE){
-            char data[4] = "GDS"; // Garra Direita Sobe
-            xQueueSendFromISR(xQueueBTN, &data, 0);
+            char data[5] = "2GDS"; // Garra Direita Sobe
+            xQueueSendFromISR(xQueueGame, &data, 0);
 
         }
     }
     if(gpio==GARRA_ESQUERDA){
         if(events==GPIO_IRQ_EDGE_FALL){
-            char data[4] = "GED"; // Garra Esquerda Desce
-            xQueueSendFromISR(xQueueBTN, &data, 0);
+            char data[5] = "2GED"; // Garra Esquerda Desce
+            xQueueSendFromISR(xQueueGame, &data, 0);
 
         } if(events==GPIO_IRQ_EDGE_RISE){
-            char data[4] = "GES"; // Garra Esquerda Sobe
-            xQueueSendFromISR(xQueueBTN, &data, 0);
+            char data[5] = "2GES"; // Garra Esquerda Sobe
+            xQueueSendFromISR(xQueueGame, &data, 0);
         }
     }
 }
@@ -105,7 +106,7 @@ void hc06_task(void *p) {
     char data[4];
 
     while (true) {
-        if (xQueueReceive(xQueueBTN, &data, 100)) {
+        if (xQueueReceive(xQueueGame, &data, 100)) {
             uart_puts(HC06_UART_ID, data);
             printf("data %s \n", data);
             vTaskDelay(pdMS_TO_TICKS(200));
@@ -145,12 +146,72 @@ void game_task(void *p){
     }
 }
 
+void x_task() {
+    adc_gpio_init(27);
+
+    int values_x[5] = {0,0,0,0,0};
+    int cont_x = 0;
+
+    while (true) {
+        adc_select_input(1);
+        int result_x = adc_read();
+        result_x = (result_x/64) - 32;
+
+        values_x[cont_x%5] = result_x;
+        cont_x++;
+            
+        int soma_x = 0;
+        for (int i = 0; i < 5; i++) {
+            soma_x += values_x[i];
+        }
+        soma_x /= 5;
+
+        if (soma_x > 16 || soma_x < -16) {
+            char data[5];
+            sprintf(data, "0%d", soma_x);
+            xQueueSend(xQueueGame, &data, 0);
+
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+}
+
+void y_task() {
+    adc_gpio_init(28);
+
+    int values_y[5] = {0,0,0,0,0};
+    int cont_y = 0;
+
+    while (true) {
+        adc_select_input(2);
+        int result_y = adc_read();
+        result_y = (result_y/64) - 32;
+
+        values_y[cont_y%5] = result_y;
+        cont_y++;
+            
+        int soma_y = 0;
+        for (int i = 0; i < 5; i++) {
+            soma_y += values_y[i];
+        }
+        soma_y /= 5;
+
+        if (soma_y > 16 || soma_y < -16) {
+            char data[5];
+            sprintf(data, "0%d", soma_y);
+            xQueueSend(xQueueGame, &data, 0);
+
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+}
+
 int main() {
     stdio_init_all();
 
     printf("Start bluetooth task\n");
 
-    xQueueBTN = xQueueCreate(64, 4*sizeof(char));
+    xQueueGame = xQueueCreate(64, 4*sizeof(char));
     xQueueBall = xQueueCreate(32, sizeof(double));
 
     xTaskCreate(game_task, "Game Task", 4096,  NULL, 1, NULL);
