@@ -33,11 +33,7 @@ void ddp_task() {
     
     adc_select_input(0);
     int ddp = adc_read();
-    printf("ddp: %d \n", ddp);
-
     double ddp_volts = (double) (ddp*3)/4095;
-
-    printf("ddp_volts: %f \n", ddp_volts);
 
     xQueueSend(xQueueBall, &ddp_volts, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -94,28 +90,6 @@ void btn_callback(uint gpio, uint32_t events){
             char data[5] = "2GES"; // Garra Esquerda Sobe
             xQueueSendFromISR(xQueueGame, &data, 0);
         }
-    }
-}
-
-void hc06_task(void *p) {
-    uart_init(HC06_UART_ID, HC06_BAUD_RATE);
-    gpio_set_function(HC06_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(HC06_RX_PIN, GPIO_FUNC_UART);
-    hc06_init("bia_ellen", "5678");
-
-    char data[4];
-
-    while (true) {
-        if (xQueueReceive(xQueueGame, &data, 100)) {
-            uart_puts(HC06_UART_ID, data);
-            printf("data %s \n", data);
-            vTaskDelay(pdMS_TO_TICKS(200));
-        } else{
-            uart_puts(HC06_UART_ID, "NAN");
-            printf("data NAN \n");
-            vTaskDelay(pdMS_TO_TICKS(200));
-        }
-        
     }
 }
 
@@ -206,18 +180,42 @@ void y_task() {
     }
 }
 
+void hc06_task(void *p) {
+    uart_init(HC06_UART_ID, HC06_BAUD_RATE);
+    gpio_set_function(HC06_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(HC06_RX_PIN, GPIO_FUNC_UART);
+    hc06_init("bia_ellen", "5678");
+
+    char data[5];
+
+    while (true) {
+        if (xQueueReceive(xQueueGame, &data, 100)) {
+            uart_puts(HC06_UART_ID, data);
+            printf("data %s \n", data);
+            vTaskDelay(pdMS_TO_TICKS(200));
+        } else{
+            uart_puts(HC06_UART_ID, "2NAN");
+            printf("data NAN \n");
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+        
+    }
+}
+
 int main() {
     stdio_init_all();
 
     printf("Start bluetooth task\n");
 
-    xQueueGame = xQueueCreate(64, 4*sizeof(char));
+    xQueueGame = xQueueCreate(64, 5*sizeof(char));
     xQueueBall = xQueueCreate(32, sizeof(double));
 
     xTaskCreate(game_task, "Game Task", 4096,  NULL, 1, NULL);
     xTaskCreate(hc06_task, "UART_Task 1", 4096, NULL, 1, NULL);
     xTaskCreate(ddp_task, "DDP", 4096, NULL, 1, NULL);
     xTaskCreate(ball_send_task, "BALL", 4096, NULL, 1, NULL);
+    xTaskCreate(x_task, "X Task", 4096, NULL, 1, NULL);
+    xTaskCreate(y_task, "Y Task", 4096, NULL, 1, NULL);
 
     vTaskStartScheduler();
 
