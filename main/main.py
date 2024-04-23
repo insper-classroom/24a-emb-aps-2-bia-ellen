@@ -3,6 +3,9 @@ import pyautogui
 
 ser = serial.Serial('COM10', 9600)
 
+def compara_string(str1, str2):
+    return str1==str2
+
 def extrai_dado(data):
     axis = int(data[0])
     value = int(data[1:4])
@@ -17,6 +20,7 @@ def move_mouse(axis, value):
 try:
     while True:
         data = ser.read(4)
+        data = data.decode()
 
         if data[0]=='2':
             btn = data[1:4]
@@ -39,6 +43,7 @@ try:
                 pyautogui.keyUp('b')
         
         else:
+            print('movendo mouse')
             axis, value = extrai_dado(data)
             move_mouse(axis,value)
 
