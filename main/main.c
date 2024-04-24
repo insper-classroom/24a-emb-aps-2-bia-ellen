@@ -21,6 +21,8 @@ const int GARRA_ESQUERDA = 15;
 const int BTN_PRESSION = 26;
 const int ANL_X = 27;
 const int ANL_Y = 28; 
+const int VIBRA_1 = 16;
+const int VIBRA_2 = 17;
 
 QueueHandle_t xQueueBTN;
 QueueHandle_t xQueueMouse;
@@ -35,28 +37,43 @@ void ddp_task() {
     adc_select_input(0);
     int ddp = adc_read();
     double ddp_volts = (double) (ddp*3)/4095;
-
     xQueueSend(xQueueBall, &ddp_volts, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
 void ball_send_task() {
+  gpio_init(VIBRA_1); 
+  gpio_init(VIBRA_2);
+
+  gpio_set_dir(VIBRA_1, GPIO_OUT);
+  gpio_set_dir(VIBRA_2, GPIO_OUT);
+
   double ddp;
   int pressed = 0;
 
   while(true) {
     if(xQueueReceive(xQueueBall, &ddp, portMAX_DELAY)) {
+        
 
         if (ddp < 2.7 && pressed == 0) {
           char data[5] = "2BDS"; // Tecla B desce
           xQueueSend(xQueueBTN, &data, 0);
+          
           pressed = 1;
         }
         else if (ddp > 2.7 && pressed == 1) {
           char data[5] = "2BSB"; // Tecla B sobe
           xQueueSend(xQueueBTN, &data, 0);
+          
           pressed = 0;
+        }
+        if(ddp<2.5){
+          gpio_put(VIBRA_1, 1);
+          gpio_put(VIBRA_2, 1);
+        } else{
+          gpio_put(VIBRA_1, 0);
+          gpio_put(VIBRA_2, 0);
         }
       }
   }
@@ -126,13 +143,11 @@ void x_task() {
 
     int values_x[5] = {0,0,0,0,0};
     int cont_x = 0;
-    size_t queue_size;
 
     while (true) {
         adc_select_input(1);
         int result_x = adc_read();
-        queue_size = uxQueueMessagesWaiting(xQueueMouse);
-        result_x = (result_x/64) - 32;
+        result_x = (result_x/32) - 64;
 
         values_x[cont_x%5] = result_x;
         cont_x++;
@@ -143,12 +158,12 @@ void x_task() {
         }
         soma_x /= 5;
 
-        //printf("somax %d e queue size %d \n", soma_x, queue_size);
         if (soma_x > 16 || soma_x < -16) {
             char data[5];
             snprintf(data, sizeof(data), "0%03d", soma_x);
-            //sprintf(data, "0%03d", soma_x);
-            if (queue_size <= 2) {
+            
+            if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
+                printf("soma x %d \n", soma_x);
                 printf("mouse enviado %s \n", data);
                 xQueueSend(xQueueMouse, &data, 0);
             }
@@ -166,13 +181,11 @@ void y_task() {
 
     int values_y[5] = {0,0,0,0,0};
     int cont_y = 0;
-    size_t queue_size;
 
     while (true) {
         adc_select_input(2);
         int result_y = adc_read();
-        queue_size = uxQueueMessagesWaiting(xQueueMouse);
-        result_y = (result_y/64) - 32;
+        result_y = (result_y/32) - 64;
 
         values_y[cont_y%5] = result_y;
         cont_y++;
@@ -183,14 +196,12 @@ void y_task() {
         }
         soma_y /= 5;
 
-        //printf("somay %d e queue size %d\n", soma_y, queue_size);
-
         if (soma_y > 16 || soma_y < -16) {
             char data[5];
             snprintf(data, sizeof(data), "1%03d", soma_y);
             //sprintf(data, "0%d", soma_y);
-            if (queue_size <= 2) {
-                printf("mouse enviado %s \n", data);
+            if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
+                printf("soma y %d \n", soma_y);
                 xQueueSend(xQueueMouse, &data, 0);
             }
             vTaskDelay(pdMS_TO_TICKS(100));
@@ -210,12 +221,10 @@ void hc06_task(void *p) {
         if (xQueueReceive(xQueueBTN, &data, 50)) {
             uart_puts(HC06_UART_ID, data);
             printf("botão data %s \n", data);
-            vTaskDelay(pdMS_TO_TICKS(200));
         } else if (xQueueReceive(xQueueMouse, &data, 50)){
             uart_puts(HC06_UART_ID, data);
             printf("mouse data %s \n", data);
 
-            vTaskDelay(pdMS_TO_TICKS(200));
         }
         
     }
