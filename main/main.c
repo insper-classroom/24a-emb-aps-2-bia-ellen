@@ -21,63 +21,12 @@ const int GARRA_ESQUERDA = 15;
 const int BTN_PRESSION = 26;
 const int ANL_X = 27;
 const int ANL_Y = 28; 
-const int VIBRA_1 = 16;
-const int VIBRA_2 = 17;
+const int VIBRA = 17;
+const int LED_BLUETOOTH = 10;
 
 QueueHandle_t xQueueBTN;
 QueueHandle_t xQueueMouse;
 QueueHandle_t xQueueBall;
-
-void ddp_task() {
-  
-  adc_gpio_init(BTN_PRESSION);
-
-  while (true) {
-    
-    adc_select_input(0);
-    int ddp = adc_read();
-    double ddp_volts = (double) (ddp*3)/4095;
-    xQueueSend(xQueueBall, &ddp_volts, 0);
-    vTaskDelay(pdMS_TO_TICKS(100));
-  }
-}
-
-void ball_send_task() {
-  gpio_init(VIBRA_1); 
-  gpio_init(VIBRA_2);
-
-  gpio_set_dir(VIBRA_1, GPIO_OUT);
-  gpio_set_dir(VIBRA_2, GPIO_OUT);
-
-  double ddp;
-  int pressed = 0;
-
-  while(true) {
-    if(xQueueReceive(xQueueBall, &ddp, portMAX_DELAY)) {
-        
-
-        if (ddp < 2.7 && pressed == 0) {
-          char data[5] = "2BDS"; // Tecla B desce
-          xQueueSend(xQueueBTN, &data, 0);
-          
-          pressed = 1;
-        }
-        else if (ddp > 2.7 && pressed == 1) {
-          char data[5] = "2BSB"; // Tecla B sobe
-          xQueueSend(xQueueBTN, &data, 0);
-          
-          pressed = 0;
-        }
-        if(ddp<2.5){
-          gpio_put(VIBRA_1, 1);
-          gpio_put(VIBRA_2, 1);
-        } else{
-          gpio_put(VIBRA_1, 0);
-          gpio_put(VIBRA_2, 0);
-        }
-      }
-  }
-}
 
 void btn_callback(uint gpio, uint32_t events){
     if(gpio==BTN_PIN_ENTER){
@@ -111,7 +60,7 @@ void btn_callback(uint gpio, uint32_t events){
     }
 }
 
-void game_task(void *p){
+void init_all(){
     gpio_init(BTN_PIN_ENTER);
     gpio_set_dir(BTN_PIN_ENTER, GPIO_IN);
     gpio_pull_up(BTN_PIN_ENTER);
@@ -132,14 +81,61 @@ void game_task(void *p){
     gpio_pull_up(GARRA_ESQUERDA);
     gpio_set_irq_enabled(GARRA_ESQUERDA, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
 
+    adc_gpio_init(BTN_PRESSION);
 
-    while(true){
+    gpio_init(LED_BLUETOOTH); 
+    gpio_init(VIBRA);
 
-    }
+    gpio_set_dir(LED_BLUETOOTH, GPIO_OUT);
+    gpio_set_dir(VIBRA, GPIO_OUT);
+
+    gpio_init(ANL_X);
+    gpio_init(ANL_Y);
+}
+
+void ddp_task() {
+
+  while (true) {
+    
+    adc_select_input(0);
+    int ddp = adc_read();
+    double ddp_volts = (double) (ddp*3)/4095;
+    xQueueSend(xQueueBall, &ddp_volts, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+void ball_send_task() {
+
+  double ddp;
+  int pressed = 0;
+
+  while(true) {
+    if(xQueueReceive(xQueueBall, &ddp, portMAX_DELAY)) {
+        
+
+        if (ddp < 2.7 && pressed == 0) {
+          char data[5] = "2BDS"; // Tecla B desce
+          xQueueSend(xQueueBTN, &data, 0);
+          
+          pressed = 1;
+        }
+        else if (ddp > 2.7 && pressed == 1) {
+          char data[5] = "2BSB"; // Tecla B sobe
+          xQueueSend(xQueueBTN, &data, 0);
+          
+          pressed = 0;
+        }
+        if(ddp<2.5){
+          gpio_put(VIBRA, 1);
+        } else{
+          gpio_put(VIBRA, 0);
+        }
+      }
+  }
 }
 
 void x_task() {
-    adc_gpio_init(27);
 
     int values_x[5] = {0,0,0,0,0};
     int cont_x = 0;
@@ -158,26 +154,24 @@ void x_task() {
         }
         soma_x /= 5;
 
-        if (soma_x > 16 || soma_x < -16) {
+        if (soma_x > 25 || soma_x < -25) {
             char data[5];
             snprintf(data, sizeof(data), "0%03d", soma_x);
             
             if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
                 printf("soma x %d \n", soma_x);
-                printf("mouse enviado %s \n", data);
                 xQueueSend(xQueueMouse, &data, 0);
             }
 
             //sprintf(data, "0%d", soma_x);
             //xQueueSend(xQueueBTN, &data, 0);
 
-            vTaskDelay(pdMS_TO_TICKS(150));
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }
 
 void y_task() {
-    adc_gpio_init(28);
 
     int values_y[5] = {0,0,0,0,0};
     int cont_y = 0;
@@ -196,15 +190,16 @@ void y_task() {
         }
         soma_y /= 5;
 
-        if (soma_y > 16 || soma_y < -16) {
+        if (soma_y > 25 || soma_y < -25) {
             char data[5];
             snprintf(data, sizeof(data), "1%03d", soma_y);
-            //sprintf(data, "0%d", soma_y);
+
             if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
                 printf("soma y %d \n", soma_y);
                 xQueueSend(xQueueMouse, &data, 0);
             }
-            vTaskDelay(pdMS_TO_TICKS(100));
+            //sprintf(data, "0%d", soma_y);
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }
@@ -218,6 +213,11 @@ void hc06_task(void *p) {
     char data[5];
 
     while (true) {
+        if(hc06_check_connection()){
+            gpio_put(LED_BLUETOOTH, 1);
+        } else {
+            gpio_put(LED_BLUETOOTH, 0);
+        }
         if (xQueueReceive(xQueueBTN, &data, 50)) {
             uart_puts(HC06_UART_ID, data);
             printf("botão data %s \n", data);
@@ -233,6 +233,7 @@ void hc06_task(void *p) {
 int main() {
     stdio_init_all();
     adc_init();
+    init_all();
 
     printf("Start bluetooth task\n");
 
@@ -240,7 +241,6 @@ int main() {
     xQueueMouse = xQueueCreate(64, 5*sizeof(char));
     xQueueBall = xQueueCreate(32, sizeof(double));
 
-    xTaskCreate(game_task, "Game Task", 4096,  NULL, 1, NULL);
     xTaskCreate(hc06_task, "UART_Task 1", 4096, NULL, 1, NULL);
     xTaskCreate(ddp_task, "DDP", 4096, NULL, 1, NULL);
     xTaskCreate(ball_send_task, "BALL", 4096, NULL, 1, NULL);
