@@ -28,6 +28,12 @@ QueueHandle_t xQueueBTN;
 QueueHandle_t xQueueMouse;
 QueueHandle_t xQueueBall;
 
+bool timer_0_callback(repeating_timer_t *rt) {
+    int led_status = gpio_get(LED_BLUETOOTH);
+    gpio_put(LED_BLUETOOTH, !led_status);
+    return true; // keep repeating
+}
+
 void btn_callback(uint gpio, uint32_t events){
     if(gpio==BTN_PIN_ENTER){
         char data[5] = "2ENT";
@@ -41,11 +47,9 @@ void btn_callback(uint gpio, uint32_t events){
         if(events==GPIO_IRQ_EDGE_FALL){
             char data[5] = "2GDD"; // Garra Direita Desce
             xQueueSendFromISR(xQueueBTN, &data, 0);
-
         } if(events==GPIO_IRQ_EDGE_RISE){
             char data[5] = "2GDS"; // Garra Direita Sobe
             xQueueSendFromISR(xQueueBTN, &data, 0);
-
         }
     }
     if(gpio==GARRA_ESQUERDA){
@@ -96,7 +100,6 @@ void init_all(){
 void ddp_task() {
 
   while (true) {
-    
     adc_select_input(0);
     int ddp = adc_read();
     double ddp_volts = (double) (ddp*3)/4095;
@@ -106,14 +109,11 @@ void ddp_task() {
 }
 
 void ball_send_task() {
-
   double ddp;
   int pressed = 0;
 
   while(true) {
     if(xQueueReceive(xQueueBall, &ddp, portMAX_DELAY)) {
-        
-
         if (ddp < 2.7 && pressed == 0) {
           char data[5] = "2BDS"; // Tecla B desce
           xQueueSend(xQueueBTN, &data, 0);
@@ -136,7 +136,6 @@ void ball_send_task() {
 }
 
 void x_task() {
-
     int values_x[5] = {0,0,0,0,0};
     int cont_x = 0;
 
@@ -159,20 +158,14 @@ void x_task() {
             snprintf(data, sizeof(data), "0%03d", soma_x);
             
             if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
-                printf("soma x %d \n", soma_x);
                 xQueueSend(xQueueMouse, &data, 0);
             }
-
-            //sprintf(data, "0%d", soma_x);
-            //xQueueSend(xQueueBTN, &data, 0);
-
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }
 
 void y_task() {
-
     int values_y[5] = {0,0,0,0,0};
     int cont_y = 0;
 
@@ -195,10 +188,8 @@ void y_task() {
             snprintf(data, sizeof(data), "1%03d", soma_y);
 
             if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
-                printf("soma y %d \n", soma_y);
                 xQueueSend(xQueueMouse, &data, 0);
             }
-            //sprintf(data, "0%d", soma_y);
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
@@ -211,22 +202,27 @@ void hc06_task(void *p) {
     hc06_init("bia_ellen", "5678");
 
     char data[5];
+    repeating_timer_t timer_0;
+    int timer_setted = 0;
 
     while (true) {
-        if(hc06_check_connection()){
+        if(gpio_get(HC06_STATE_PIN)){
+            if(timer_setted){
+                cancel_repeating_timer(&timer_0);
+                timer_setted = 0;
+            }
             gpio_put(LED_BLUETOOTH, 1);
-        } else {
-            gpio_put(LED_BLUETOOTH, 0);
+        } else if(!timer_setted){
+            if(add_repeating_timer_us(500000, timer_0_callback, NULL, &timer_0)){
+                timer_setted = 1;
+            } 
         }
+
         if (xQueueReceive(xQueueBTN, &data, 50)) {
             uart_puts(HC06_UART_ID, data);
-            printf("botão data %s \n", data);
         } else if (xQueueReceive(xQueueMouse, &data, 50)){
             uart_puts(HC06_UART_ID, data);
-            printf("mouse data %s \n", data);
-
-        }
-        
+        }   
     }
 }
 
