@@ -142,7 +142,7 @@ void x_task() {
     while (true) {
         adc_select_input(1);
         int result_x = adc_read();
-        result_x = (result_x/32) - 64;
+        result_x = (result_x/32) - 72;
 
         values_x[cont_x%5] = result_x;
         cont_x++;
@@ -155,11 +155,8 @@ void x_task() {
 
         if (soma_x > 25 || soma_x < -25) {
             char data[5];
-            snprintf(data, sizeof(data), "0%03d", soma_x);
-            
-            if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
-                xQueueSend(xQueueMouse, &data, 0);
-            }
+            snprintf(data, sizeof(data), "0%03d", -soma_x);
+            xQueueSend(xQueueMouse, &data, 0);
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
@@ -172,7 +169,7 @@ void y_task() {
     while (true) {
         adc_select_input(2);
         int result_y = adc_read();
-        result_y = (result_y/32) - 64;
+        result_y = (result_y/32) - 60;
 
         values_y[cont_y%5] = result_y;
         cont_y++;
@@ -183,13 +180,10 @@ void y_task() {
         }
         soma_y /= 5;
 
-        if (soma_y > 25 || soma_y < -25) {
+        if (soma_y > 30 || soma_y < -30) {
             char data[5];
             snprintf(data, sizeof(data), "1%03d", soma_y);
-
-            if (uxQueueMessagesWaiting(xQueueMouse) <= 2) {
-                xQueueSend(xQueueMouse, &data, 0);
-            }
+            xQueueSend(xQueueMouse, &data, 0);
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
@@ -221,6 +215,7 @@ void hc06_task(void *p) {
         if (xQueueReceive(xQueueBTN, &data, 50)) {
             uart_puts(HC06_UART_ID, data);
         } else if (xQueueReceive(xQueueMouse, &data, 50)){
+            printf("%s", data);
             uart_puts(HC06_UART_ID, data);
         }   
     }
@@ -234,7 +229,7 @@ int main() {
     printf("Start bluetooth task\n");
 
     xQueueBTN = xQueueCreate(64, 5*sizeof(char));
-    xQueueMouse = xQueueCreate(64, 5*sizeof(char));
+    xQueueMouse = xQueueCreate(2, 5*sizeof(char));
     xQueueBall = xQueueCreate(32, sizeof(double));
 
     xTaskCreate(hc06_task, "UART_Task 1", 4096, NULL, 1, NULL);
